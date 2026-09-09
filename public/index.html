@@ -14,16 +14,26 @@
   <div class="connection" role="status">Conexão interrompida. Reconectando…</div>
   <main class="deck" id="deck" tabindex="-1"></main>
 
-  <button class="corner-qr" id="cornerQr" type="button" aria-label="Abrir página de participação em nova aba">
+  <button class="corner-qr" id="cornerQr" type="button" aria-label="Ampliar QR code de participação" aria-haspopup="dialog" aria-controls="qrDialog">
     <canvas aria-hidden="true"></canvas>
   </button>
 
+  <dialog class="qr-dialog" id="qrDialog" aria-labelledby="qrDialogTitle">
+    <button class="qr-close" id="closeQr" type="button" autofocus>Fechar</button>
+    <h2 id="qrDialogTitle">Participe pelo celular</h2>
+    <canvas id="expandedQr" role="img" aria-label="QR code para a página de participação"></canvas>
+    <a id="qrParticipantLink" target="_blank" rel="noopener noreferrer">Abrir página de participação</a>
+  </dialog>
+
   <div class="presenter-chrome" aria-label="Controles da apresentação">
     <span class="slide-counter" id="slideCounter" aria-live="polite"></span>
+    <div class="pace-participation">
     <button class="pace" id="pace" type="button" title="Clique para iniciar, pausar ou zerar (duplo clique)">
       <span class="pace-clock" id="paceClock">00:00</span>
       <span class="pace-delta" id="paceDelta">pronto</span>
     </button>
+    <a class="participation-link" href="https://grafos.presentation-template.workers.dev/participar/" target="_blank" rel="noopener noreferrer" title="Abrir página de participação">grafos.presentation-template.workers.dev/participar/</a>
+    </div>
     <div class="chrome-actions">
       <button class="icon-button" id="previousSlide" type="button" aria-label="Slide anterior">←</button>
       <button class="icon-button" id="nextSlide" type="button" aria-label="Próximo slide">→</button>
@@ -75,10 +85,42 @@
       `<section class="slide" data-index="${index}" data-kind="${escapeHtml(slide.original && !slide.reveal ? 'original' : slide.type)}" data-activity="${escapeHtml(activityForSlide(slide))}" aria-hidden="true"><span class="slide-owner" aria-label="Parte ${slide.parte}">${slide.parte}</span>${slideMarkup(slide, renderOptions)}</section>`
     )).join('');
 
+    document.querySelectorAll('[data-carousel]').forEach(carousel => {
+      const panels = [...carousel.querySelectorAll('[data-carousel-panel]')];
+      const steps = [...carousel.querySelectorAll('[data-carousel-goto]')];
+      carousel.addEventListener('click', event => {
+        const button = event.target.closest('button');
+        if (!button) return;
+        let index = Number(carousel.dataset.step);
+        if (button.hasAttribute('data-carousel-prev')) index--;
+        else if (button.hasAttribute('data-carousel-next')) index++;
+        else if (button.hasAttribute('data-carousel-goto')) index = Number(button.dataset.carouselGoto);
+        else return;
+        index = Math.max(0, Math.min(panels.length - 1, index));
+        carousel.dataset.step = index;
+        panels.forEach((panel, i) => { panel.hidden = i !== index; });
+        carousel.closest('.slide').querySelectorAll('[data-carousel-graph]').forEach((graph, i) => { graph.hidden = i !== index; });
+        steps.forEach((step, i) => step.setAttribute('aria-pressed', String(i === index)));
+        carousel.querySelector('[data-carousel-prev]').disabled = index === 0;
+        carousel.querySelector('[data-carousel-next]').disabled = index === panels.length - 1;
+        carousel.querySelector('[data-carousel-status]').textContent = `${index + 1} / ${panels.length} · ${steps[index].dataset.title}`;
+      });
+    });
     const slides = [...document.querySelectorAll('.slide')];
-    document.querySelectorAll('.cover-qr').forEach(canvas => LivePresentation.drawQr(canvas, participantUrl, 640));
+    document.querySelectorAll('.cover-qr, .exam-qr-canvas').forEach(canvas => LivePresentation.drawQr(canvas, participantUrl, 640));
     LivePresentation.drawQr(cornerQr.querySelector('canvas'), participantUrl, 320);
-    cornerQr.addEventListener('click', () => window.open(participantUrl, '_blank', 'noopener'));
+    const qrDialog = document.querySelector('#qrDialog');
+    LivePresentation.drawQr(document.querySelector('#expandedQr'), participantUrl, 1024);
+    document.querySelector('#qrParticipantLink').href = participantUrl;
+    const openQr = () => qrDialog.showModal();
+    cornerQr.addEventListener('click', openQr);
+    document.querySelectorAll('.cover-qr-button, .exam-qr-button').forEach(button => button.addEventListener('click', openQr));
+    document.querySelector('#closeQr').addEventListener('click', () => qrDialog.close());
+    qrDialog.addEventListener('click', event => {
+      const rect = qrDialog.getBoundingClientRect();
+      if (event.target === qrDialog && (event.clientX < rect.left || event.clientX > rect.right
+        || event.clientY < rect.top || event.clientY > rect.bottom)) qrDialog.close();
+    });
 
     function renderPollResults() {
       // Layout de questão: a barra de votos vive DENTRO de cada alternativa.
@@ -145,7 +187,7 @@
       slideCounter.textContent = `${nextIndex + 1} / ${slides.length}`;
       progressBar.style.width = `${(nextIndex + 1) / slides.length * 100}%`;
       const activity = slides[nextIndex].dataset.activity;
-      cornerQr.classList.toggle('is-visible', activity.startsWith('poll:'));
+      cornerQr.classList.toggle('is-visible', activity.startsWith('poll:') && !slides[nextIndex].querySelector('.exam-qr'));
       if (updateHash) history.replaceState(null, '', `#/${nextIndex + 1}`);
       if (isController) connection.sendVital('activity', { type: 'activity', activity });
       if (typeof reportarPosicao === 'function') reportarPosicao();
@@ -247,6 +289,7 @@
     });
     addEventListener('hashchange', () => goTo(indexFromHash(), { updateHash: false }));
     addEventListener('keydown', event => {
+      if (qrDialog.open) return;
       if (event.target.closest('button, a, input, textarea, select, summary, [contenteditable]')) return;
       if (['ArrowRight', 'PageDown', ' '].includes(event.key)) {
         event.preventDefault();

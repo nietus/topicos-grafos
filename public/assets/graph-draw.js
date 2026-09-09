@@ -8,7 +8,7 @@
  *   view: [largura, altura],        // default 760x420
  *   directed: boolean,              // desenha setas
  *   nodes: [{ id, x, y, label, note, state }],
- *   edges: [{ from, to, weight, label, state, curve }],
+ *   edges: [{ from, to, weight, label, state, curve, labelOffset: [dx, dy] }],
  *   caption: 'texto sob o desenho'
  * }
  *
@@ -103,14 +103,15 @@ function drawEdge(spec, edge, prefix) {
 
   const geometry = from === to ? loopGeometry(from) : edgeGeometry(from, to, edge.curve);
   const state = edge.state ? ` gd-edge--${escapeXml(edge.state)}` : '';
-  const markerVariant = edge.state === 'active' || edge.state === 'tree'
+  const markerVariant = edge.state === 'updated' ? 'updated' : edge.state === 'active' || edge.state === 'tree'
     ? 'active'
     : edge.state === 'dim' ? 'dim' : 'base';
   const marker = spec.directed ? ` marker-end="url(#${prefix}-arrow-${markerVariant})"` : '';
   const text = edge.label ?? (edge.weight === undefined ? '' : edge.weight);
 
+  const [labelDx, labelDy] = edge.labelOffset || [0, 0];
   const label = text === '' ? '' : `
-      <text class="gd-edge-label${state}" x="${geometry.labelX.toFixed(1)}" y="${geometry.labelY.toFixed(1)}">${escapeXml(text)}</text>`;
+      <text class="gd-edge-label${state}" x="${(geometry.labelX + labelDx).toFixed(1)}" y="${(geometry.labelY + labelDy).toFixed(1)}">${escapeXml(text)}</text>`;
 
   return `<path class="gd-edge${state}" d="${geometry.path}"${marker} />${label}`;
 }
@@ -144,6 +145,7 @@ function drawNode(node) {
 const ARROW_VARIANTS = [
   ['base', 'var(--color-line-strong, rgb(255 255 255 / 45%))'],
   ['active', 'var(--color-accent)'],
+  ['updated', '#b65019'],
   ['dim', 'var(--color-line)']
 ];
 

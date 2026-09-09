@@ -93,7 +93,7 @@ function coverSlide(slide) {
       </div>
       <div>
         <div class="qr-card qr-card--limpo">
-          <canvas class="cover-qr" aria-hidden="true"></canvas>
+          <button class="cover-qr-button" type="button" aria-label="Ampliar QR code de participação" aria-haspopup="dialog" aria-controls="qrDialog"><canvas class="cover-qr" aria-hidden="true"></canvas></button>
         </div>
         <p class="live-count"><strong data-connected>0</strong> pessoas conectadas</p>
       </div>
@@ -245,6 +245,21 @@ function stepsSlide(slide) {
  * tabela de estado à direita. É o mesmo grafo slide após slide — só mudam os
  * destaques e os números, para a plateia acompanhar sem se reorientar.
  */
+function carouselMarkup(slide) {
+  const start = slide.carouselStart || 0;
+  return `<div class="table-carousel" role="region" aria-label="${escapeHtml(slide.carouselLabel || 'Passagens de Bellman–Ford')}" aria-roledescription="carrossel" data-carousel data-step="${start}">
+    <div class="carousel-controls"><button type="button" data-carousel-prev aria-label="Passagem anterior" ${start === 0 ? 'disabled' : ''}>←</button>
+      <span data-carousel-status aria-live="polite">${start + 1} / ${slide.carousel.length} · ${text(slide.carousel[start].title)}</span>
+      <button type="button" data-carousel-next aria-label="Próxima passagem" ${start === slide.carousel.length - 1 ? 'disabled' : ''}>→</button></div>
+    ${slide.carousel.map((frame, index) => `<div data-carousel-panel ${index === start ? '' : 'hidden'}>
+      <table class="slide-table trace-table"><thead><tr>${slide.headers.map(h => `<th scope="col">${text(h)}</th>`).join('')}</tr></thead>
+      <tbody>${frame.rows.map((row, rowIndex) => `<tr class="${frame.changedRows.includes(rowIndex) ? 'carousel-changed' : ''}">${row.map((cell, i) => i ? `<td class="${frame.changedCells?.some(([r, c]) => r === rowIndex && c === i) ? 'carousel-cell-changed' : ''}">${text(cell)}</td>` : `<th scope="row">${text(cell)}</th>`).join('')}</tr>`).join('')}</tbody></table>
+      ${frame.description ? `<p class="carousel-description">${text(frame.description)}</p>` : ''}
+    </div>`).join('')}
+    <div class="carousel-steps" aria-label="Escolher passagem">${slide.carousel.map((frame, index) => `<button type="button" data-carousel-goto="${index}" data-title="${escapeHtml(frame.title)}" aria-label="${escapeHtml(frame.title)}" aria-pressed="${index === start}">${index}</button>`).join('')}</div>
+  </div>`;
+}
+
 function traceSlide(slide) {
   const cabecalho = (slide.headers || []).map(h => `<th scope="col">${text(h)}</th>`).join('');
   const corpo = (slide.rows || []).map(row => {
@@ -255,12 +270,12 @@ function traceSlide(slide) {
   }).join('');
 
   return `<div class="slide-content trace-layout">
-      <div class="trace-visual">${graphOf(slide)}</div>
+      <div class="trace-visual">${slide.graphFrames ? slide.graphFrames.map((graph, i) => `<div data-carousel-graph ${i === (slide.carouselStart || 0) ? '' : 'hidden'}>${graphSvg(graph)}</div>`).join('') : graphOf(slide)}</div>
       <div class="trace-side">
         ${eyebrowOf(slide)}
         ${titleOf(slide, 'trace-title')}
         ${descriptionOf(slide)}
-        ${cabecalho || corpo ? `<div class="table-scroll">
+        ${slide.carousel ? carouselMarkup(slide) : cabecalho || corpo ? `<div class="table-scroll">
           <table class="slide-table trace-table">
             ${cabecalho ? `<thead><tr>${cabecalho}</tr></thead>` : ''}
             <tbody>${corpo}</tbody>
@@ -341,9 +356,12 @@ function questionSlide(slide) {
  */
 function originalQuestionSlide(slide) {
   const images = slide.images || [];
+  const participationLayout = slide.id === 'poscomp_floyd-pergunta' ? ' exam-participation--below'
+    : slide.id === 'enade_gulosa-pergunta' ? ' exam-participation--halves' : '';
   return `<div class="slide-content original-layout">
     <header class="original-head"><p class="question-source">${text(slide.source)}</p></header>
-    <div class="exam-pages${images.length > 1 ? ' exam-pages--two' : ''}">${images.map((name,i)=>`<span class="exam-image"><img src="/provas/recortes/${escapeHtml(name)}.png" alt="${escapeHtml(slide.source)} — ${escapeHtml(slide.question)}${images.length>1?` — parte ${i+1}`:''}" loading="lazy"></span>`).join('')}</div>
+    <div class="exam-participation${participationLayout}"><div class="exam-pages${images.length > 1 ? ' exam-pages--two' : ''}">${images.map((name,i)=>`<span class="exam-image"><img src="/provas/recortes/${escapeHtml(name)}.png" alt="${escapeHtml(slide.source)} — ${escapeHtml(slide.question)}${images.length>1?` — parte ${i+1}`:''}" loading="lazy"></span>`).join('')}</div>
+    <aside class="exam-qr"><button class="exam-qr-button" type="button" aria-label="Ampliar QR code de participação" aria-haspopup="dialog" aria-controls="qrDialog"><canvas class="exam-qr-canvas" aria-hidden="true"></canvas></button></aside></div>
     <footer class="exam-footer"><div class="exam-votes" data-poll-alternatives="${escapeHtml(slide.poll)}">${slide.alternatives.map(a=>`<span class="alt"><b>${escapeHtml(a.id.toUpperCase())}</b><span class="alt-pct" data-alt-pct="${escapeHtml(a.id)}">—</span></span>`).join('')}</div><p data-poll-summary="${escapeHtml(slide.poll)}">Aguardando respostas…</p></footer>
     <div class="apenas-leitor-de-tela">${slide.statement ? `<p>${text(slide.statement)}</p>` : ''}<p>${text(slide.question)}</p><ol>${slide.alternatives.map(a=>`<li>${text(a.text)}</li>`).join('')}</ol></div>
   </div>`;

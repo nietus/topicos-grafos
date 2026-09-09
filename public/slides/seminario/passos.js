@@ -1,3 +1,4 @@
+import { bellmanCarouselSlides } from './bellman-carousel.js';
 /**
  * Execuções detalhadas — um slide por mudança de estado.
  *
@@ -312,7 +313,7 @@ export const passosWelsh = numerar(
   'p-welsh'
 );
 export const passosBellman = numerar(
-  tracoBellmanFord({ base: negativo, origem: 'S', eyebrow: 'Bellman–Ford de S' }),
+  bellmanCarouselSlides,
   'p-bellman'
 );
 /** Dijkstra completo no grafo da rede — o da prova já tem trace próprio. */
